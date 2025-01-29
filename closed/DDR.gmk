@@ -42,8 +42,8 @@ include $(TOPDIR)/make/common/MakeBase.gmk
 include $(TOPDIR)/make/common/JavaCompilation.gmk
 
 # The main source directories.
-DDR_VM_SRC_BOOT_ROOT := $(J9JCL_SOURCES_DIR)/ddr/interim
-DDR_VM_SRC_NEW_ROOT  := $(J9JCL_SOURCES_DIR)/openj9.dtfj/share/classes
+DDR_VM_SRC_ROOT_BOOT := $(J9JCL_SOURCES_DIR)/ddr/interim
+DDR_VM_SRC_ROOT_NEW  := $(J9JCL_SOURCES_DIR)/openj9.dtfj/share/classes
 
 # The top-level directory for intermediate artifacts.
 DDR_SUPPORT_DIR := $(SUPPORT_OUTPUTDIR)/ddr
@@ -55,8 +55,8 @@ DDR_SUPERSET_FILE := $(OUTPUTDIR)/vm/superset.dat
 # Where to write class files.
 DDR_CLASSES_BIN := $(DDR_SUPPORT_DIR)/classes
 DDR_TEST_BIN := $(DDR_SUPPORT_DIR)/test
-DDR_TOOLS_BOOT_BIN := $(DDR_SUPPORT_DIR)/tools-interim
-DDR_TOOLS_NEW_BIN := $(DDR_SUPPORT_DIR)/tools
+DDR_TOOLS_BIN_BOOT := $(DDR_SUPPORT_DIR)/tools-interim
+DDR_TOOLS_BIN_NEW := $(DDR_SUPPORT_DIR)/tools
 
 # Where to write generated source files.
 DDR_GENSRC_DIR := $(SUPPORT_OUTPUTDIR)/gensrc/openj9.dtfj
@@ -89,7 +89,7 @@ DDR_TOOLS_SOURCE_FILES := \
 # Build the tools for use with the boot JDK.
 $(eval $(call SetupJavaCompilation,BUILD_DDR_TOOLS_BOOT, \
 	TARGET_RELEASE := $(TARGET_RELEASE_BOOTJDK), \
-	BIN := $(DDR_TOOLS_BOOT_BIN), \
+	BIN := $(DDR_TOOLS_BIN_BOOT), \
 	CLASSPATH := $(JDK_OUTPUTDIR)/modules/java.base, \
 	JAVAC_FLAGS := --add-exports=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED, \
 	SRC := $(DDR_SUPPORT_DIR)/interim, \
@@ -99,15 +99,15 @@ $(eval $(call SetupJavaCompilation,BUILD_DDR_TOOLS_BOOT, \
 # Build the tools for use with the new JDK.
 $(eval $(call SetupJavaCompilation,BUILD_DDR_TOOLS_NEW, \
 	TARGET_RELEASE := $(TARGET_RELEASE_NEWJDK_UPGRADED), \
-	BIN := $(DDR_TOOLS_NEW_BIN), \
+	BIN := $(DDR_TOOLS_BIN_NEW), \
 	CLASSPATH := $(JDK_OUTPUTDIR)/modules/java.base, \
-	SRC := $(DDR_VM_SRC_NEW_ROOT), \
+	SRC := $(DDR_VM_SRC_ROOT_NEW), \
 	INCLUDE_FILES := $(DDR_TOOLS_SOURCE_FILES), \
 	))
 
 # Any new references to constants must be paired with additions to the compatibility
 # list unless those constants were defined long ago.
-DDR_COMPATIBILITY_FILE := $(DDR_VM_SRC_NEW_ROOT)/com/ibm/j9ddr/CompatibilityConstants29.dat
+DDR_COMPATIBILITY_FILE := $(DDR_VM_SRC_ROOT_NEW)/com/ibm/j9ddr/CompatibilityConstants29.dat
 
 #############################################################################
 
@@ -118,24 +118,24 @@ DDR_COMPATIBILITY_FILE := $(DDR_VM_SRC_NEW_ROOT)/com/ibm/j9ddr/CompatibilityCons
 # fixpath.sh would only fix the first entry of the path.
 DDR_PATH_SEP := $(if $(filter $(OPENJDK_BUILD_OS),windows),;,:)
 
-DDR_TOOLS_BOOT_PATHLIST := "$(call FixPath,$(DDR_TOOLS_BOOT_BIN))$(DDR_PATH_SEP)$(call FixPath,$(DDR_VM_SRC_BOOT_ROOT))"
-DDR_TOOLS_BOOT_OPTIONS := \
-	-cp $(DDR_TOOLS_BOOT_PATHLIST) \
-	--patch-module=openj9.dtfj=$(DDR_TOOLS_BOOT_PATHLIST)
+DDR_TOOLS_PATHLIST_BOOT := "$(call FixPath,$(DDR_TOOLS_BIN_BOOT))$(DDR_PATH_SEP)$(call FixPath,$(DDR_VM_SRC_ROOT_BOOT))"
+DDR_TOOLS_OPTIONS_BOOT := \
+	-cp $(DDR_TOOLS_PATHLIST_BOOT) \
+	--patch-module=openj9.dtfj=$(DDR_TOOLS_PATHLIST_BOOT)
 
-DDR_TOOLS_NEW_PATHLIST := "$(call FixPath,$(DDR_TOOLS_NEW_BIN))$(DDR_PATH_SEP)$(call FixPath,$(DDR_VM_SRC_NEW_ROOT))"
-DDR_TOOLS_NEW_OPTIONS := \
-	-cp $(DDR_TOOLS_NEW_PATHLIST) \
-	--patch-module=openj9.dtfj=$(DDR_TOOLS_NEW_PATHLIST)
+DDR_TOOLS_PATHLIST_NEW := "$(call FixPath,$(DDR_TOOLS_BIN_NEW))$(DDR_PATH_SEP)$(call FixPath,$(DDR_VM_SRC_ROOT_NEW))"
+DDR_TOOLS_OPTIONS_NEW := \
+	-cp $(DDR_TOOLS_PATHLIST_NEW) \
+	--patch-module=openj9.dtfj=$(DDR_TOOLS_PATHLIST_NEW)
 
 # Only fields listed in this file can be directly accessed by hand-written DDR code;
 # its contents influence the generated class files.
-DDR_FIELDS_FILE := $(DDR_VM_SRC_NEW_ROOT)/com/ibm/j9ddr/AuxFieldInfo29.dat
+DDR_FIELDS_FILE := $(DDR_VM_SRC_ROOT_NEW)/com/ibm/j9ddr/AuxFieldInfo29.dat
 
 $(DDR_CLASSES_MARKER) : $(DDR_BLOB_FILE) $(DDR_COMPATIBILITY_FILE) $(DDR_FIELDS_FILE) $(BUILD_DDR_TOOLS_NEW)
 	@$(ECHO) Generating DDR pointer and structure class files
 	@$(RM) -rf $(DDR_CLASSES_BIN)
-	@$(JDK_OUTPUTDIR)/bin/java $(DDR_TOOLS_NEW_OPTIONS) \
+	@$(JDK_OUTPUTDIR)/bin/java $(DDR_TOOLS_OPTIONS_NEW) \
 		com.ibm.j9ddr.tools.ClassGenerator \
 			--blob=$(DDR_BLOB_FILE) \
 			--out=$(DDR_CLASSES_BIN)
@@ -143,7 +143,7 @@ $(DDR_CLASSES_MARKER) : $(DDR_BLOB_FILE) $(DDR_COMPATIBILITY_FILE) $(DDR_FIELDS_
 
 $(DDR_POINTERS_MARKER) : $(DDR_SUPERSET_FILE) $(DDR_FIELDS_FILE) $(BUILD_DDR_TOOLS_BOOT)
 	@$(ECHO) Generating DDR pointer class source files
-	@$(JAVA) $(DDR_TOOLS_BOOT_OPTIONS) com.ibm.j9ddr.tools.PointerGenerator \
+	@$(JAVA) $(DDR_TOOLS_OPTIONS_BOOT) com.ibm.j9ddr.tools.PointerGenerator \
 		-a $(DDR_FIELDS_FILE) \
 		-f $(dir $(DDR_SUPERSET_FILE)) \
 		-s $(notdir $(DDR_SUPERSET_FILE)) \
@@ -156,7 +156,7 @@ DDR_RESTRICT_FILE := $(OPENJ9_TOPDIR)/debugtools/DDR_VM/data/superset-constants.
 
 $(DDR_STRUCTURES_MARKER) : $(DDR_SUPERSET_FILE) $(DDR_RESTRICT_FILE) $(DDR_COMPATIBILITY_FILE) $(DDR_FIELDS_FILE) $(BUILD_DDR_TOOLS_BOOT)
 	@$(ECHO) Generating DDR structure stub source files
-	@$(JAVA) $(DDR_TOOLS_BOOT_OPTIONS) com.ibm.j9ddr.tools.StructureStubGenerator \
+	@$(JAVA) $(DDR_TOOLS_OPTIONS_BOOT) com.ibm.j9ddr.tools.StructureStubGenerator \
 		-f $(dir $(DDR_SUPERSET_FILE)) \
 		-s $(notdir $(DDR_SUPERSET_FILE)) \
 		-p com.ibm.j9ddr.vm29.structure \
@@ -171,7 +171,7 @@ $(DDR_STRUCTURES_MARKER) : $(DDR_SUPERSET_FILE) $(DDR_RESTRICT_FILE) $(DDR_COMPA
 # or StructureStubGenerator) has already done so:
 #   /usr/bin/cp: cannot create directory 'support/gensrc/openj9.dtfj/com/ibm/j9ddr/vm29': File exists
 # To avoid that problem, we insist that $(CP) runs before the other tasks.
-$(DDR_POINTERS_MARKER) $(DDR_STRUCTURES_MARKER) : $(call FindFiles, $(DDR_VM_SRC_NEW_ROOT))
+$(DDR_POINTERS_MARKER) $(DDR_STRUCTURES_MARKER) : $(call FindFiles, $(DDR_VM_SRC_ROOT_NEW))
 
 generate : $(DDR_POINTERS_MARKER) $(DDR_STRUCTURES_MARKER)
 
@@ -192,7 +192,7 @@ $(eval $(call SetupJavaCompilation,BUILD_J9DDR_TEST_CLASSES, \
 		--system none, \
 	BIN := $(DDR_TEST_BIN), \
 	CLASSPATH := $(DDR_CLASSES_BIN), \
-	SRC := $(DDR_VM_SRC_NEW_ROOT) \
+	SRC := $(DDR_VM_SRC_ROOT_NEW) \
 	))
 
 .PHONY : compile_check
